@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CuckooIsland · 配置</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f172a;
+    --bg-glow-1: rgba(34, 197, 94, 0.14);
+    --bg-glow-2: rgba(56, 189, 248, 0.10);
+    --card: #1b2336;
+    --card-2: #161d2f;
+    --muted: #272f42;
+    --border: rgba(148, 163, 184, 0.22);
+    --border-strong: rgba(148, 163, 184, 0.38);
+    --fg: #f8fafc;
+    --muted-fg: #94a3b8;
+    --accent: #22c55e;
+    --accent-soft: rgba(34, 197, 94, 0.14);
+    --accent-2: #38bdf8;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --radius-sm: 8px;
+    --radius: 14px;
+    --radius-lg: 18px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --mono: "Fira Code", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+    --sans: "Fira Sans", "IBM Plex Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  body {
+    min-height: 100vh;
+    padding: var(--space-5);
+    background-image:
+      radial-gradient(900px 480px at 12% -10%, var(--bg-glow-1), transparent 62%),
+      radial-gradient(760px 420px at 96% 0%, var(--bg-glow-2), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(circle at 50% 0%, rgba(0, 0, 0, 0.65), transparent 72%);
+  }
+
+  .shell {
+    position: relative;
+    max-width: 1080px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  header.top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .brand { display: flex; align-items: center; gap: var(--space-3); }
+
+  .brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(145deg, rgba(34, 197, 94, 0.22), rgba(56, 189, 248, 0.16));
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .brand-mark svg { width: 22px; height: 22px; }
+
+  h1 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+
+  .subtitle { margin: 2px 0 0; color: var(--muted-fg); font-size: 12.5px; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(27, 35, 54, 0.72);
+    font-size: 12.5px;
+    color: var(--muted-fg);
+    min-height: 32px;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-fg); }
+  .pill[data-tone="ok"] .dot { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .pill[data-tone="warn"] .dot { background: var(--warning); box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16); }
+  .pill[data-tone="bad"] .dot { background: var(--danger); box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16); }
+
+  .grid { display: grid; gap: var(--space-4); }
+  .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  @media (max-width: 860px) {
+    .cols-2 { grid-template-columns: minmax(0, 1fr); }
+    body { padding: var(--space-4); }
+  }
+
+  .card {
+    background: linear-gradient(180deg, rgba(27, 35, 54, 0.94), rgba(22, 29, 47, 0.94));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    letter-spacing: 0.02em;
+    color: #cbd5e1;
+  }
+
+  .card-title svg { width: 16px; height: 16px; opacity: 0.85; }
+
+  /* 当前科目 */
+  .now {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: var(--space-5);
+    align-items: center;
+  }
+
+  @media (max-width: 720px) {
+    .now { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .now-kicker {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted-fg);
+  }
+
+  .subject {
+    margin: 6px 0 4px;
+    font-family: var(--mono);
+    font-size: 44px;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .subject .idx {
+    font-size: 13px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    border-radius: 999px;
+    padding: 3px 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .meta-row { display: flex; flex-wrap: wrap; gap: 10px 18px; color: var(--muted-fg); font-size: 13px; }
+  .meta-row b { color: #e2e8f0; font-weight: 500; }
+
+  .progress {
+    margin-top: var(--space-4);
+    height: 8px;
+    border-radius: 999px;
+    background: var(--muted);
+    overflow: hidden;
+  }
+
+  .progress span {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 600ms var(--ease);
+  }
+
+  .countdown {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .countdown .value { font-family: var(--mono); font-size: 26px; font-weight: 600; }
+  .countdown .unit { color: var(--muted-fg); font-size: 12.5px; }
+
+  .next-box {
+    border-left: 1px dashed var(--border-strong);
+    padding-left: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  @media (max-width: 720px) {
+    .next-box { border-left: none; border-top: 1px dashed var(--border-strong); padding-left: 0; padding-top: var(--space-4); }
+  }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .row + .row { margin-top: 10px; }
+
+  .label { color: var(--muted-fg); font-size: 13px; }
+  .value { font-family: var(--mono); font-size: 13.5px; }
+
+  /* 表单 */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field + .field { margin-top: var(--space-3); }
+
+  .field label { font-size: 12.5px; color: var(--muted-fg); }
+
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--fg);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    min-height: 42px;
+    transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease);
+  }
+
+  textarea { min-height: 180px; resize: vertical; line-height: 1.55; }
+
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: none;
+    border-color: rgba(34, 197, 94, 0.65);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+  }
+
+  .hint { font-size: 12px; color: var(--muted-fg); }
+  .hint code { font-family: var(--mono); color: #cbd5e1; }
+
+  .switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 10px 0;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.16);
+    min-height: 52px;
+  }
+
+  .switch:last-of-type { border-bottom: none; }
+  .switch .text { display: flex; flex-direction: column; gap: 2px; }
+  .switch .text span:first-child { font-size: 13.5px; }
+  .switch .text span:last-child { font-size: 12px; color: var(--muted-fg); }
+
+  .toggle {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 200ms var(--ease), border-color 200ms var(--ease);
+  }
+
+  .toggle::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    transition: transform 220ms var(--ease), background 220ms var(--ease);
+  }
+
+  .toggle[aria-checked="true"] { background: rgba(34, 197, 94, 0.28); border-color: rgba(34, 197, 94, 0.6); }
+  .toggle[aria-checked="true"]::after { transform: translateX(20px); background: var(--accent); }
+
+  button {
+    font-family: var(--sans);
+    font-size: 13px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: rgba(39, 47, 66, 0.85);
+    color: var(--fg);
+    padding: 10px 16px;
+    min-height: 42px;
+    cursor: pointer;
+    transition: transform 160ms var(--ease), background 180ms var(--ease), border-color 180ms var(--ease);
+  }
+
+  button:hover { background: rgba(51, 65, 85, 0.9); border-color: rgba(148, 163, 184, 0.55); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  button.primary {
+    background: linear-gradient(180deg, #22c55e, #16a34a);
+    border-color: rgba(34, 197, 94, 0.75);
+    color: #052e16;
+    font-weight: 600;
+  }
+
+  button.primary:hover { background: linear-gradient(180deg, #2ee06a, #1cb455); }
+
+  button.ghost { background: transparent; }
+
+  button.danger { border-color: rgba(239, 68, 68, 0.5); color: #fecaca; background: rgba(239, 68, 68, 0.08); }
+  button.danger:hover { background: rgba(239, 68, 68, 0.16); }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: var(--space-4); }
+
+  /* 自动化列表 */
+  .auto-list { display: flex; flex-direction: column; gap: 8px; max-height: 236px; overflow: auto; padding-right: 4px; }
+
+  .auto-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(15, 23, 42, 0.55);
+    cursor: pointer;
+    transition: border-color 160ms var(--ease), background 160ms var(--ease);
+    min-height: 48px;
+  }
+
+  .auto-item:hover { border-color: rgba(148, 163, 184, 0.5); }
+  .auto-item[aria-selected="true"] { border-color: rgba(34, 197, 94, 0.6); background: rgba(34, 197, 94, 0.08); }
+  .auto-item .name { font-size: 13px; }
+  .auto-item .detail { font-size: 11.5px; color: var(--muted-fg); font-family: var(--mono); }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted-fg);
+    white-space: nowrap;
+  }
+
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); }
+  @media (max-width: 860px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+  .statusbar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(16px);
+    color: var(--muted-fg);
+    font-size: 12.5px;
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.55);
+  }
+
+  .statusbar[data-tone="ok"] { color: #bbf7d0; border-color: rgba(34, 197, 94, 0.4); }
+  .statusbar[data-tone="bad"] { color: #fecaca; border-color: rgba(239, 68, 68, 0.4); }
+
+  .kbd {
+    font-family: var(--mono);
+    font-size: 11px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    padding: 1px 6px;
+    color: var(--muted-fg);
+  }
+
+  .empty {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4);
+    color: var(--muted-fg);
+    font-size: 12.5px;
+    text-align: center;
+  }
+
+  .hidden { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8.5 12 3l9 5.5v7L12 21l-9-5.5z"/>
+          <path d="M12 12 3 8.5M12 12v9M12 12l9-3.5"/>
+        </svg>
+      </div>
+      <div>
+        <h1>CuckooIsland</h1>
+        <p class="subtitle">CuckooInterface × ClassIsland 课表联动</p>
+      </div>
+    </div>
+    <div class="pill" id="conn-pill" data-tone="warn" role="status" aria-live="polite">
+      <span class="dot"></span><span id="conn-text">正在连接本地服务…</span>
+    </div>
+  </header>
+
+  <!-- 当前科目 -->
+  <section class="card" id="now-card" aria-label="当前课程">
+    <div class="card-head">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+        </svg>
+        当前状态
+      </div>
+      <span class="tag" id="plan-tag">—</span>
+    </div>
+
+    <div class="now">
+      <div>
+        <div class="now-kicker" id="state-kicker">读取中</div>
+        <div class="subject" id="subject-text">—</div>
+        <div class="meta-row">
+          <span>时间 <b id="time-range">—</b></span>
+          <span>教师 <b id="teacher-text">—</b></span>
+          <span>节次 <b id="index-text">—</b></span>
+        </div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress">
+          <span id="progress-fill"></span>
+        </div>
+        <div class="countdown">
+          <span class="value" id="remaining">—</span>
+          <span class="unit" id="remaining-label">剩余</span>
+        </div>
+      </div>
+
+      <div class="next-box">
+        <div>
+          <div class="now-kicker">下一节</div>
+          <div class="value" id="next-subject" style="font-size:18px;margin-top:4px;">—</div>
+          <div class="hint" id="next-time">—</div>
+        </div>
+        <div>
+          <div class="now-kicker">课表 / 配置文件</div>
+          <div class="hint" id="profile-text" style="margin-top:4px;">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid cols-2">
+    <!-- 联动状态 -->
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/>
+          </svg>
+          与 ClassIsland 的联动
+        </div>
+        <span class="tag" id="bridge-tag">未注入</span>
+      </div>
+
+      <div class="field">
+        <label for="ci-dir">ClassIsland 安装目录</label>
+        <input id="ci-dir" type="text" spellcheck="false" placeholder="例如 I:\Apps\ClassIsland">
+        <div class="hint">目录中应包含 <code>ClassIsland.exe</code> 与 <code>data\Settings.json</code>。</div>
+      </div>
+
+      <div class="row" style="margin-top:14px;">
+        <span class="label">识别来源</span>
+        <span class="value" id="dir-source">—</span>
+      </div>
+      <div class="row">
+        <span class="label">桥接插件版本</span>
+        <span class="value" id="bridge-version">—</span>
+      </div>
+
+      <div class="actions">
+        <button id="btn-inject" type="button">注入 / 更新桥接插件</button>
+        <button id="btn-restart" class="ghost" type="button">重启 ClassIsland</button>
+      </div>
+      <p class="hint" style="margin-top:10px;">注入只复制 <code>CuckooIslandBridge.dll</code> 到 <code>data\Plugins\cuckoo.island.bridge</code>，不会改动 ClassIsland 本体。</p>
+    </section>
+
+    <!-- 提醒 -->
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+          </svg>
+          事件提醒
+        </div>
+      </div>
+
+      <div class="switch">
+        <div class="text"><span>上课提醒</span><span>检测到新课程时在 ClassIsland 弹出提醒</span></div>
+        <button class="toggle" id="tg-start" role="switch" aria-checked="true" aria-label="上课提醒"></button>
+      </div>
+      <div class="switch">
+        <div class="text"><span>下课提醒</span><span>下课时提醒下一节课程</span></div>
+        <button class="toggle" id="tg-end" role="switch" aria-checked="true" aria-label="下课提醒"></button>
+      </div>
+      <div class="switch">
+        <div class="text"><span>课间提醒</span><span>进入课间时提示剩余休息时间</span></div>
+        <button class="toggle" id="tg-break" role="switch" aria-checked="false" aria-label="课间提醒"></button>
+      </div>
+      <div class="switch">
+        <div class="text"><span>发布到事件总线</span><span>向 CuckooInterface 发送 <code>cuckoo.island.*</code> 事件</span></div>
+        <button class="toggle" id="tg-emit" role="switch" aria-checked="true" aria-label="发布事件"></button>
+      </div>
+
+      <div class="actions">
+        <button id="btn-test" class="primary" type="button">发送测试提醒</button>
+        <button id="btn-refresh" class="ghost" type="button">立即刷新状态</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 自动化 -->
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h16M4 12h10M4 17h7"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+        自动化配置
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="auto-file" style="min-height:34px;padding:6px 10px;width:auto;"></select>
+        <span class="tag" id="auto-count">0 条</span>
+      </div>
+    </div>
+
+    <div class="split">
+      <div>
+        <div class="auto-list" id="auto-list" role="listbox" aria-label="自动化列表"></div>
+        <div class="field" style="margin-top:12px;">
+          <label for="notify-title">插入提醒行动 · 标题</label>
+          <input id="notify-title" type="text" placeholder="例如：CuckooInterface 提示">
+        </div>
+        <div class="field">
+          <label for="notify-message">正文</label>
+          <input id="notify-message" type="text" placeholder="例如：检测到插件加载完成">
+        </div>
+        <div class="actions">
+          <button id="btn-insert" type="button">插入到所选自动化</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="field">
+          <label for="auto-raw">原始 JSON（保存前会校验数组结构）</label>
+          <textarea id="auto-raw" spellcheck="false" aria-label="自动化原始 JSON"></textarea>
+        </div>
+        <div class="actions">
+          <button id="btn-auto-save" class="primary" type="button">保存自动化</button>
+          <button id="btn-auto-reload" class="ghost" type="button">重新读取</button>
+        </div>
+        <p class="hint" style="margin-top:10px;">保存前会自动备份为 <code>*.cuckoo-backup-*.json</code>。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 运行设置 -->
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.36a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.64 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.64 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.64 1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.64a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.36 9c.12.37.43.66.82.79H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/>
+        </svg>
+        运行设置
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="field">
+        <label for="http-port">本地 API 端口</label>
+        <input id="http-port" type="number" min="1024" max="65535" step="1">
+        <div class="hint">配置页通过 <code>127.0.0.1</code> 读取实时状态，修改端口后需重新加载插件。</div>
+      </div>
+      <div class="field">
+        <label for="poll-sec">轮询间隔（秒）</label>
+        <input id="poll-sec" type="number" min="3" max="120" step="1">
+        <div class="hint">监听课表变化的最小间隔，默认 10 秒。</div>
+      </div>
+    </div>
+
+    <div class="switch" style="margin-top:8px;">
+      <div class="text"><span>自动注入桥接插件</span><span>发现版本不一致时，自动把桥接 DLL 同步到 ClassIsland</span></div>
+      <button class="toggle" id="tg-auto-inject" role="switch" aria-checked="true" aria-label="自动注入桥接插件"></button>
+    </div>
+
+    <div class="actions">
+      <button id="btn-save" class="primary" type="button">保存设置</button>
+      <button id="btn-reset" class="ghost" type="button">重新读取</button>
+    </div>
+  </section>
+
+  <div class="statusbar" id="statusbar" data-tone="info" role="status" aria-live="polite">
+    <span id="status-text">就绪</span>
+    <span class="hint">快捷键 <span class="kbd">Ctrl</span> + <span class="kbd">S</span> 保存</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API = "http://127.0.0.1:17893/api";
+  var hostConfig = {};
+  var state = null;
+  var autoState = null;
+  var selectedAuto = -1;
+  var autoDirty = false;
+  var settingsDirty = false;
+  var toggles = ["start", "end", "break", "emit"];
+
+  function $(id) { return document.getElementById(id); }
+
+  function status(text, tone) {
+    $("status-text").textContent = text;
+    $("statusbar").dataset.tone = tone || "info";
+  }
+
+  function setPill(tone, text) {
+    $("conn-pill").dataset.tone = tone;
+    $("conn-text").textContent = text;
+  }
+
+  function readHostConfig() {
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish(raw) {
+        if (done) return;
+        done = true;
+        if (raw) {
+          try {
+            hostConfig = typeof raw === "string" ? JSON.parse(raw) : raw;
+          } catch (e) { hostConfig = {}; }
+        }
+        resolve(hostConfig);
+      }
+      window.addEventListener("cuckoo-config-ready", function () { finish(window.__cuckooConfig); });
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.addEventListener("message", function (event) {
+          var msg = event.data || {};
+          if (msg.type === "cuckoo:init") finish(msg.config);
+          if (msg.type === "cuckoo:saved" && msg.ok === false) status("宿主保存失败：" + (msg.error || ""), "bad");
+        });
+      }
+      setTimeout(function () { finish(window.__cuckooConfig); }, 700);
+    });
+  }
+
+  async function api(path, options) {
+    var response = await fetch(API + path, Object.assign({
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store"
+    }, options || {}));
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return response.json();
+  }
+
+  function fmtTime(seconds) {
+    seconds = Math.max(0, Math.round(seconds));
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    if (m >= 60) {
+      var h = Math.floor(m / 60);
+      return h + " 小时 " + (m % 60) + " 分";
+    }
+    return m > 0 ? m + " 分 " + s + " 秒" : s + " 秒";
+  }
+
+  function hhmm(value) {
+    return value ? String(value).slice(0, 5) : "—";
+  }
+
+  function renderState(payload) {
+    state = payload;
+    var lesson = payload.lesson || {};
+    var bridge = payload.bridge || {};
+    var cfg = payload.config || {};
+    var ci = payload.classisland || {};
+
+    setPill(ci.found ? "ok" : "bad", ci.found ? "已连接 ClassIsland" : "未找到 ClassIsland");
+
+    var kicker = { class: "正在上课", break: "课间休息", idle: "当前无课" }[lesson.status] || "未知状态";
+    $("state-kicker").textContent = lesson.error ? lesson.error : kicker;
+
+    var subject = lesson.subject || (lesson.status === "break" ? "课间" : "无课");
+    $("subject-text").innerHTML = "";
+    $("subject-text").appendChild(document.createTextNode(subject));
+    if (lesson.lessonIndex > 0) {
+      var badge = document.createElement("span");
+      badge.className = "idx";
+      badge.textContent = "第 " + lesson.lessonIndex + " 节";
+      $("subject-text").appendChild(badge);
+    }
+
+    $("time-range").textContent = lesson.startAt ? hhmm(lesson.startAt) + " - " + hhmm(lesson.endAt) : "—";
+    $("teacher-text").textContent = lesson.teacher || "—";
+    $("index-text").textContent = lesson.lessonCount ? lesson.lessonIndex + " / " + lesson.lessonCount : "—";
+    $("next-subject").textContent = lesson.nextSubject || "—";
+    $("next-time").textContent = lesson.nextStartAt ? "开始于 " + hhmm(lesson.nextStartAt) : "今天没有后续课程";
+    $("profile-text").textContent = (lesson.profile || "—") + (lesson.plan ? " · " + lesson.plan : "");
+    $("plan-tag").textContent = lesson.plan || "未匹配课表";
+
+    var remaining = lesson.remainingSeconds || 0;
+    $("remaining").textContent = lesson.status === "class" ? fmtTime(remaining) : (lesson.status === "break" ? fmtTime(remaining) : "—");
+    $("remaining-label").textContent = lesson.status === "class" ? "剩余" : (lesson.status === "break" ? "课间剩余" : "剩余");
+
+    var total = 0;
+    if (lesson.startAt && lesson.endAt) {
+      total = toSeconds(lesson.endAt) - toSeconds(lesson.startAt);
+    }
+    var percent = total > 0 ? Math.min(100, Math.max(0, ((total - remaining) / total) * 100)) : 0;
+    $("progress-fill").style.width = percent.toFixed(1) + "%";
+    $("progress").setAttribute("aria-valuenow", percent.toFixed(0));
+
+    $("dir-source").textContent = ci.source || "—";
+    $("bridge-tag").textContent = bridge.installed ? "已注入" : "未注入";
+    $("bridge-tag").style.borderColor = bridge.installed ? "rgba(34,197,94,.5)" : "";
+    $("bridge-version").textContent = bridge.installed ? ("v" + (bridge.version || "?")) : "—";
+
+    if (!settingsDirty) fillSettings(cfg);
+    $("conn-pill").title = payload.lastError || "";
+  }
+
+  function toSeconds(text) {
+    var parts = String(text).split(":");
+    if (parts.length < 2) return 0;
+    return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+(parts[2] || 0));
+  }
+
+  function fillSettings(cfg) {
+    if (settingsDirty) return;
+    $("ci-dir").value = cfg.classisland_dir || "";
+    $("http-port").value = cfg.http_port || 17893;
+    $("poll-sec").value = cfg.poll_seconds || 10;
+    setToggle("tg-start", cfg.notify_lesson_start !== false);
+    setToggle("tg-end", cfg.notify_lesson_end !== false);
+    setToggle("tg-break", cfg.notify_break === true);
+    setToggle("tg-emit", cfg.emit_events !== false);
+    setToggle("tg-auto-inject", cfg.auto_inject_bridge !== false);
+  }
+
+  function setToggle(id, on) {
+    $(id).setAttribute("aria-checked", on ? "true" : "false");
+  }
+
+  function isOn(id) {
+    return $(id).getAttribute("aria-checked") === "true";
+  }
+
+  function collectConfig() {
+    return {
+      classisland_dir: $("ci-dir").value.trim(),
+      http_port: parseInt($("http-port").value, 10) || 17893,
+      poll_seconds: Math.max(3, parseInt($("poll-sec").value, 10) || 10),
+      notify_lesson_start: isOn("tg-start"),
+      notify_lesson_end: isOn("tg-end"),
+      notify_break: isOn("tg-break"),
+      emit_events: isOn("tg-emit"),
+      auto_inject_bridge: isOn("tg-auto-inject"),
+      automation_file: $("auto-file").value || "Default.json"
+    };
+  }
+
+  function postHost(config) {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({ type: "cuckoo:saveConfig", config: JSON.stringify(config) });
+    }
+  }
+
+  async function saveSettings() {
+    var config = collectConfig();
+    postHost(config);
+    try {
+      await api("/config", { method: "POST", body: JSON.stringify(config) });
+      settingsDirty = false;
+      status("设置已保存", "ok");
+      await refresh();
+    } catch (e) {
+      status("本地服务未响应，已通过宿主通道保存：" + e.message, "bad");
+    }
+  }
+
+  async function refresh() {
+    try {
+      var payload = await api("/state");
+      renderState(payload);
+      if (!autoState) await loadAutomation(payload.config.automation_file);
+      setPill(payload.classisland.found ? "ok" : "bad", payload.classisland.found ? "已连接 ClassIsland" : "未找到 ClassIsland");
+    } catch (e) {
+      setPill("warn", "本地服务未启动");
+    }
+  }
+
+  function renderAutomation(payload) {
+    autoState = payload;
+    var list = $("auto-list");
+    list.innerHTML = "";
+    var items = payload.items || [];
+    $("auto-count").textContent = items.length + " 条";
+
+    var files = payload.files || [];
+    var select = $("auto-file");
+    var current = payload.file || (hostConfig.automation_file || "Default.json");
+    if (select.options.length !== files.length || !files.includes(select.value)) {
+      select.innerHTML = "";
+      files.forEach(function (name) {
+        var option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+      select.value = current;
+    }
+
+    if (!payload.ok) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = payload.error || "没有可读取的自动化配置";
+      list.appendChild(empty);
+      $("auto-raw").value = "";
+      return;
+    }
+
+    items.forEach(function (item) {
+      var node = document.createElement("div");
+      node.className = "auto-item";
+      node.setAttribute("role", "option");
+      node.setAttribute("aria-selected", item.index === selectedAuto ? "true" : "false");
+      node.addEventListener("click", function () { selectAutomation(item.index); });
+
+      var left = document.createElement("div");
+      var name = document.createElement("div");
+      name.className = "name";
+      name.textContent = item.name;
+      var detail = document.createElement("div");
+      detail.className = "detail";
+      detail.textContent = "触发 " + item.triggers + " · 行动 " + item.actions;
+      left.appendChild(name);
+      left.appendChild(detail);
+
+      node.appendChild(left);
+      list.appendChild(node);
+    });
+
+    if (!autoDirty) {
+      $("auto-raw").value = JSON.stringify(payload.raw || [], null, 2);
+    }
+  }
+
+  function selectAutomation(index) {
+    selectedAuto = index;
+    Array.prototype.forEach.call(document.querySelectorAll(".auto-item"), function (node, i) {
+      node.setAttribute("aria-selected", i === index ? "true" : "false");
+    });
+  }
+
+  async function loadAutomation(file) {
+    try {
+      var payload = await api("/automations?file=" + encodeURIComponent(file || ""));
+      if (!payload.ok && file) {
+        payload = await api("/automations");
+      }
+      renderAutomation(payload);
+    } catch (e) {
+      renderAutomation({ ok: false, error: "无法读取自动化：" + e.message, items: [], files: [] });
+    }
+  }
+
+  async function saveAutomation() {
+    var raw;
+    try {
+      raw = JSON.parse($("auto-raw").value);
+    } catch (e) {
+      status("JSON 语法错误：" + e.message, "bad");
+      return;
+    }
+    if (!Array.isArray(raw)) {
+      status("自动化配置必须是 JSON 数组", "bad");
+      return;
+    }
+    try {
+      var result = await api("/automations", { method: "POST", body: JSON.stringify({ items: raw }) });
+      if (!result.ok) {
+        status("保存失败：" + (result.error || ""), "bad");
+        return;
+      }
+      autoDirty = false;
+      status("自动化已保存，备份：" + (result.backup || "无"), "ok");
+      await loadAutomation($("auto-file").value);
+    } catch (e) {
+      status("保存失败：" + e.message, "bad");
+    }
+  }
+
+  async function insertAction() {
+    if (selectedAuto < 0) {
+      status("请先在左侧选择一条自动化", "bad");
+      return;
+    }
+    var title = $("notify-title").value.trim() || "CuckooInterface";
+    var message = $("notify-message").value.trim() || "这是一条来自 CuckooInterface 的提醒";
+    try {
+      var result = await api("/automations/insert", {
+        method: "POST",
+        body: JSON.stringify({ index: selectedAuto, title: title, message: message })
+      });
+      if (!result.ok) {
+        status("插入失败：" + (result.error || ""), "bad");
+        return;
+      }
+      autoDirty = false;
+      status("已插入提醒行动", "ok");
+      await loadAutomation($("auto-file").value);
+    } catch (e) {
+      status("插入失败：" + e.message, "bad");
+    }
+  }
+
+  async function testNotify() {
+    try {
+      var result = await api("/notify", {
+        method: "POST",
+        body: JSON.stringify({ title: "CuckooInterface 测试提醒", message: "如果你在 ClassIsland 看到这条提醒，说明桥接工作正常。", duration: 6 })
+      });
+      status(result.ok ? "已推送到提醒队列" : "推送失败", result.ok ? "ok" : "bad");
+    } catch (e) {
+      status("推送失败：" + e.message, "bad");
+    }
+  }
+
+  async function injectBridge() {
+    status("正在注入…", "info");
+    try {
+      var result = await api("/inject", { method: "POST", body: "{}" });
+      status(result.ok ? "已注入 v" + result.version + "，重启 ClassIsland 后生效" : "注入失败：" + (result.error || ""), result.ok ? "ok" : "bad");
+      await refresh();
+    } catch (e) {
+      status("注入失败：" + e.message, "bad");
+    }
+  }
+
+  async function restartClassisland() {
+    try {
+      var result = await api("/restart-classisland", { method: "POST", body: "{}" });
+      status(result.ok ? (result.message || "已重启") : "重启失败：" + (result.error || ""), result.ok ? "ok" : "bad");
+    } catch (e) {
+      status("重启失败：" + e.message, "bad");
+    }
+  }
+
+  function bindToggles() {
+    toggles.concat(["auto-inject"]).forEach(function (key) {
+      var id = "tg-" + key;
+      $(id).addEventListener("click", function () {
+        setToggle(id, !isOn(id));
+        settingsDirty = true;
+        status("已修改，记得保存（Ctrl + S）", "info");
+      });
+      $(id).addEventListener("keydown", function (event) {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          setToggle(id, !isOn(id));
+        }
+      });
+    });
+  }
+
+  async function boot() {
+    bindToggles();
+    await readHostConfig();
+
+    if (hostConfig.http_port) {
+      API = "http://127.0.0.1:" + hostConfig.http_port + "/api";
+    }
+    fillSettings(hostConfig);
+
+    $("btn-save").addEventListener("click", saveSettings);
+    $("btn-reset").addEventListener("click", async function () { await loadHostConfigAgain(); await refresh(); status("已重新读取", "ok"); });
+    $("btn-test").addEventListener("click", testNotify);
+    $("btn-inject").addEventListener("click", injectBridge);
+    $("btn-restart").addEventListener("click", restartClassisland);
+    $("btn-insert").addEventListener("click", insertAction);
+    $("btn-auto-save").addEventListener("click", saveAutomation);
+    $("btn-auto-reload").addEventListener("click", function () { loadAutomation($("auto-file").value); status("已重新读取自动化", "ok"); });
+    $("btn-refresh").addEventListener("click", function () { refresh().then(function () { status("状态已刷新", "ok"); }); });
+    $("auto-file").addEventListener("change", function () {
+      autoDirty = false;
+      loadAutomation($("auto-file").value);
+    });
+    $("auto-raw").addEventListener("input", function () { autoDirty = true; });
+    ["ci-dir", "http-port", "poll-sec"].forEach(function (id) {
+      $(id).addEventListener("input", function () { settingsDirty = true; });
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        saveSettings();
+      }
+    });
+
+    await refresh();
+    setInterval(refresh, 5000);
+    setInterval(function () { if (!autoDirty) loadAutomation($("auto-file").value); }, 30000);
+  }
+
+  async function loadHostConfigAgain() {
+    try {
+      var result = await api("/config");
+      if (result && result.config) fillSettings(result.config);
+    } catch (e) { /* ignore */ }
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

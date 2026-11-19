@@ -1,0 +1,9 @@
+# nonk8s
+# ClassIsland 插件清单：https://docs.classisland.tech/zh-cn/latest/dev/plugins/create-project/
+id: cuckoo.island.bridge
+name: CuckooInterface 联动
+description: 接收 CuckooInterface 插件平台推送的事件，并以 ClassIsland 提醒的形式显示。
+entranceAssembly: CuckooIslandBridge.dll
+apiVersion: 2.0.0.0
+version: 1.0.0.0
+author: CuckooIsland Contributors
