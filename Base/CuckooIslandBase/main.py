@@ -1123,6 +1123,8 @@ class ApiHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
                 self.send_header("Content-Length", str(config_path.stat().st_size))
                 self.end_headers()
                 self.wfile.write(config_path.read_bytes())
