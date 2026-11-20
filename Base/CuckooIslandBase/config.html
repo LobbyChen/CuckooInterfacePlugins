@@ -634,14 +634,9 @@
 
     <div class="split">
       <div class="field">
-        <label for="http-port">本地 API 端口</label>
-        <input id="http-port" type="number" min="1024" max="65535" step="1">
-        <div class="hint">配置页通过 <code>127.0.0.1</code> 读取实时状态，修改端口后需重新加载插件。</div>
-      </div>
-      <div class="field">
         <label for="poll-sec">轮询间隔（秒）</label>
         <input id="poll-sec" type="number" min="3" max="120" step="1">
-        <div class="hint">监听课表变化的最小间隔，默认 10 秒。</div>
+        <div class="hint">插件读取设置与课表变化的最小间隔，默认 10 秒。</div>
       </div>
     </div>
 
@@ -666,8 +661,9 @@
 (function () {
   "use strict";
 
-  var API = window.location.origin + "/api";
   var hostConfig = {};
+  var hostConfigReady = false;
+  var pendingCommands = {};
   var state = null;
   var autoState = null;
   var selectedAuto = -1;
@@ -687,38 +683,106 @@
     $("conn-text").textContent = text;
   }
 
+  function parseConfig(raw) {
+    try {
+      var value = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return value && typeof value === "object" ? value : {};
+    } catch (e) { return {}; }
+  }
+
+  function applyHostConfig(raw) {
+    hostConfig = parseConfig(raw);
+    hostConfigReady = true;
+    if (!settingsDirty) fillSettings(hostConfig);
+    if (hostConfig.runtime_state) renderState(hostConfig.runtime_state);
+    if (hostConfig.automation_state && !autoDirty) {
+      renderAutomation(hostConfig.automation_state);
+    }
+    processCommandResults();
+  }
+
+  function onHostMessage(event) {
+    var msg = event.data || {};
+    if (msg.type === "cuckoo:init" || msg.type === "cuckoo:config") {
+      applyHostConfig(msg.config);
+    } else if (msg.type === "cuckoo:saved") {
+      if (msg.ok) status("设置已保存", "ok");
+      else status("宿主保存失败：" + (msg.error || ""), "bad");
+    }
+  }
+
+  function requestHostConfig() {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({ type: "cuckoo:getConfig" });
+    }
+  }
+
   function readHostConfig() {
     return new Promise(function (resolve) {
-      var done = false;
-      function finish(raw) {
-        if (done) return;
-        done = true;
-        if (raw) {
-          try {
-            hostConfig = typeof raw === "string" ? JSON.parse(raw) : raw;
-          } catch (e) { hostConfig = {}; }
-        }
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.addEventListener("message", onHostMessage);
+      }
+      window.addEventListener("cuckoo-config-ready", function () {
+        applyHostConfig(window.__cuckooConfig);
+        resolve(hostConfig);
+      }, { once: true });
+      if (window.__cuckooConfig) {
+        applyHostConfig(window.__cuckooConfig);
         resolve(hostConfig);
       }
-      window.addEventListener("cuckoo-config-ready", function () { finish(window.__cuckooConfig); });
-      if (window.chrome && window.chrome.webview) {
-        window.chrome.webview.addEventListener("message", function (event) {
-          var msg = event.data || {};
-          if (msg.type === "cuckoo:init") finish(msg.config);
-          if (msg.type === "cuckoo:saved" && msg.ok === false) status("宿主保存失败：" + (msg.error || ""), "bad");
-        });
-      }
-      setTimeout(function () { finish(window.__cuckooConfig); }, 700);
+      requestHostConfig();
+      setTimeout(function () { resolve(hostConfig); }, 900);
     });
   }
 
-  async function api(path, options) {
-    var response = await fetch(API + path, Object.assign({
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store"
-    }, options || {}));
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    return response.json();
+  function postHost(config) {
+    hostConfig = config;
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({
+        type: "cuckoo:saveConfig",
+        config: JSON.stringify(config)
+      });
+    } else {
+      status("请在 CuckooInterface 内置配置页中使用此页面", "bad");
+    }
+  }
+
+  function queueCommand(type, payload) {
+    if (!hostConfigReady) {
+      status("宿主配置尚未就绪", "bad");
+      return null;
+    }
+    var id = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 9);
+    var config = Object.assign({}, hostConfig);
+    var commands = Array.isArray(config.ui_commands) ? config.ui_commands.slice() : [];
+    commands.push({ id: id, type: type, payload: payload || {} });
+    config.ui_commands = commands;
+    pendingCommands[id] = type;
+    postHost(config);
+    status("操作已提交，等待插件轮询处理…", "info");
+    return id;
+  }
+
+  function processCommandResults() {
+    var results = Array.isArray(hostConfig.ui_results) ? hostConfig.ui_results : [];
+    results.forEach(function (result) {
+      if (!result || !pendingCommands[result.id]) return;
+      var type = pendingCommands[result.id];
+      delete pendingCommands[result.id];
+      if (type === "automation_save" || type === "automation_insert") {
+        if (result.ok) {
+          autoDirty = false;
+          if (hostConfig.automation_state) renderAutomation(hostConfig.automation_state);
+        }
+      }
+      if (result.ok) {
+        var detail = result.backup ? "；备份：" + result.backup :
+          (result.version ? "；版本 v" + result.version : "");
+        status((result.message || "操作完成") + detail, "ok");
+      } else {
+        status("操作失败：" + (result.error || "未知错误"), "bad");
+      }
+    });
   }
 
   function fmtTime(seconds) {
@@ -796,7 +860,6 @@
   function fillSettings(cfg) {
     if (settingsDirty) return;
     $("ci-dir").value = cfg.classisland_dir || "";
-    $("http-port").value = cfg.http_port || 17893;
     $("poll-sec").value = cfg.poll_seconds || 10;
     setToggle("tg-start", cfg.notify_lesson_start !== false);
     setToggle("tg-end", cfg.notify_lesson_end !== false);
@@ -816,7 +879,6 @@
   function collectConfig() {
     return {
       classisland_dir: $("ci-dir").value.trim(),
-      http_port: parseInt($("http-port").value, 10) || 17893,
       poll_seconds: Math.max(3, parseInt($("poll-sec").value, 10) || 10),
       notify_lesson_start: isOn("tg-start"),
       notify_lesson_end: isOn("tg-end"),
@@ -827,34 +889,16 @@
     };
   }
 
-  function postHost(config) {
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage({ type: "cuckoo:saveConfig", config: JSON.stringify(config) });
-    }
-  }
-
-  async function saveSettings() {
-    var config = collectConfig();
+  function saveSettings() {
+    var config = Object.assign({}, hostConfig, collectConfig());
     postHost(config);
-    try {
-      await api("/config", { method: "POST", body: JSON.stringify(config) });
-      settingsDirty = false;
-      status("设置已保存", "ok");
-      await refresh();
-    } catch (e) {
-      status("本地服务未响应，已通过宿主通道保存：" + e.message, "bad");
-    }
+    settingsDirty = false;
+    status("设置已提交，插件将在下一轮轮询时读取", "info");
   }
 
-  async function refresh() {
-    try {
-      var payload = await api("/state");
-      renderState(payload);
-      if (!autoState) await loadAutomation(payload.config.automation_file);
-      setPill(payload.classisland.found ? "ok" : "bad", payload.classisland.found ? "已连接 ClassIsland" : "未找到 ClassIsland");
-    } catch (e) {
-      setPill("warn", "本地服务未启动");
-    }
+  function refresh() {
+    requestHostConfig();
+    queueCommand("refresh", {});
   }
 
   function renderAutomation(payload) {
@@ -920,15 +964,18 @@
     });
   }
 
-  async function loadAutomation(file) {
-    try {
-      var payload = await api("/automations?file=" + encodeURIComponent(file || ""));
-      if (!payload.ok && file) {
-        payload = await api("/automations");
-      }
+  function loadAutomation(file) {
+    file = file || "Default.json";
+    if (hostConfig.automation_file !== file) {
+      var config = Object.assign({}, hostConfig, { automation_file: file });
+      postHost(config);
+    }
+    var payload = hostConfig.automation_state;
+    if (payload && payload.file === file) {
       renderAutomation(payload);
-    } catch (e) {
-      renderAutomation({ ok: false, error: "无法读取自动化：" + e.message, items: [], files: [] });
+    } else {
+      status("正在等待插件读取自动化文件…", "info");
+      requestHostConfig();
     }
   }
 
@@ -944,18 +991,10 @@
       status("自动化配置必须是 JSON 数组", "bad");
       return;
     }
-    try {
-      var result = await api("/automations", { method: "POST", body: JSON.stringify({ items: raw }) });
-      if (!result.ok) {
-        status("保存失败：" + (result.error || ""), "bad");
-        return;
-      }
-      autoDirty = false;
-      status("自动化已保存，备份：" + (result.backup || "无"), "ok");
-      await loadAutomation($("auto-file").value);
-    } catch (e) {
-      status("保存失败：" + e.message, "bad");
-    }
+    queueCommand("automation_save", {
+      file: $("auto-file").value || "Default.json",
+      items: raw
+    });
   }
 
   async function insertAction() {
@@ -965,53 +1004,28 @@
     }
     var title = $("notify-title").value.trim() || "CuckooInterface";
     var message = $("notify-message").value.trim() || "这是一条来自 CuckooInterface 的提醒";
-    try {
-      var result = await api("/automations/insert", {
-        method: "POST",
-        body: JSON.stringify({ index: selectedAuto, title: title, message: message })
-      });
-      if (!result.ok) {
-        status("插入失败：" + (result.error || ""), "bad");
-        return;
-      }
-      autoDirty = false;
-      status("已插入提醒行动", "ok");
-      await loadAutomation($("auto-file").value);
-    } catch (e) {
-      status("插入失败：" + e.message, "bad");
-    }
+    queueCommand("automation_insert", {
+      file: $("auto-file").value || "Default.json",
+      index: selectedAuto,
+      title: title,
+      message: message
+    });
   }
 
   async function testNotify() {
-    try {
-      var result = await api("/notify", {
-        method: "POST",
-        body: JSON.stringify({ title: "CuckooInterface 测试提醒", message: "如果你在 ClassIsland 看到这条提醒，说明桥接工作正常。", duration: 6 })
-      });
-      status(result.ok ? "已推送到提醒队列" : "推送失败", result.ok ? "ok" : "bad");
-    } catch (e) {
-      status("推送失败：" + e.message, "bad");
-    }
+    queueCommand("notify", {
+      title: "CuckooInterface 测试提醒",
+      message: "如果你在 ClassIsland 看到这条提醒，说明桥接工作正常。",
+      duration: 6
+    });
   }
 
   async function injectBridge() {
-    status("正在注入…", "info");
-    try {
-      var result = await api("/inject", { method: "POST", body: "{}" });
-      status(result.ok ? "已注入 v" + result.version + "，重启 ClassIsland 后生效" : "注入失败：" + (result.error || ""), result.ok ? "ok" : "bad");
-      await refresh();
-    } catch (e) {
-      status("注入失败：" + e.message, "bad");
-    }
+    queueCommand("inject", {});
   }
 
   async function restartClassisland() {
-    try {
-      var result = await api("/restart-classisland", { method: "POST", body: "{}" });
-      status(result.ok ? (result.message || "已重启") : "重启失败：" + (result.error || ""), result.ok ? "ok" : "bad");
-    } catch (e) {
-      status("重启失败：" + e.message, "bad");
-    }
+    queueCommand("restart", {});
   }
 
   function bindToggles() {
@@ -1035,9 +1049,6 @@
     bindToggles();
     await readHostConfig();
 
-    if (hostConfig.http_port) {
-      API = "http://127.0.0.1:" + hostConfig.http_port + "/api";
-    }
     fillSettings(hostConfig);
 
     $("btn-save").addEventListener("click", saveSettings);
@@ -1054,7 +1065,7 @@
       loadAutomation($("auto-file").value);
     });
     $("auto-raw").addEventListener("input", function () { autoDirty = true; });
-    ["ci-dir", "http-port", "poll-sec"].forEach(function (id) {
+    ["ci-dir", "poll-sec"].forEach(function (id) {
       $(id).addEventListener("input", function () { settingsDirty = true; });
     });
 
@@ -1065,16 +1076,12 @@
       }
     });
 
-    await refresh();
-    setInterval(refresh, 5000);
-    setInterval(function () { if (!autoDirty) loadAutomation($("auto-file").value); }, 30000);
+    requestHostConfig();
+    setInterval(requestHostConfig, 3000);
   }
 
-  async function loadHostConfigAgain() {
-    try {
-      var result = await api("/config");
-      if (result && result.config) fillSettings(result.config);
-    } catch (e) { /* ignore */ }
+  function loadHostConfigAgain() {
+    requestHostConfig();
   }
 
   boot();
