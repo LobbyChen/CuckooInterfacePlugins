@@ -7,7 +7,7 @@
 2. 把课程状态以事件形式发布到 CuckooInterface 事件总线；
 3. 读取并修改 ClassIsland 的自动化配置；
 4. 自动注入 ClassIsland 侧桥接插件，把事件以提醒形式显示在 ClassIsland 上；
-5. 为配置页提供本地 HTTP API（127.0.0.1）。
+5. 通过宿主配置存储与配置页双向交换设置、操作请求和运行状态。
 """
 
 from __future__ import annotations
@@ -21,16 +21,17 @@ import threading
 import time
 import traceback
 from datetime import date, datetime, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import parse_qs, urlsplit
 
 PLUGIN_ID = "com.cuckoo.plugin.cuckoo_island"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "classisland_dir": "",
-    "http_port": 17893,
+    "ui_commands": [],
+    "ui_results": [],
+    "runtime_state": {},
+    "automation_state": {},
     "poll_seconds": 10,
     "emit_events": True,
     "notify_lesson_start": True,
@@ -862,6 +863,7 @@ class IslandService:
         with self.lock:
             self.config = config
 
+        configured = str(config.get("classisland_dir") or "").strip()
         ci_dir, source = self._resolve_dir(configured)
         with self.lock:
             self.ci_dir = ci_dir
@@ -945,12 +947,136 @@ class IslandService:
     def tick(self) -> None:
         try:
             self.reload_config()
+            self.process_ui_commands()
             self.maybe_inject()
             state = self.compute()
             self.handle_transition(state)
+            self.publish_ui_state(state)
         except Exception:
             self.last_error = traceback.format_exc()
             log_error(f"轮询失败：{self.last_error}")
+
+    def _latest_config(self) -> Dict[str, Any]:
+        try:
+            value = _sdk_get_config(PLUGIN_ID) or {}
+            return dict(value) if isinstance(value, dict) else {}
+        except Exception:
+            return {}
+
+    def _write_config_fields(self, fields: Dict[str, Any]) -> None:
+        if not HAS_SDK:
+            return
+        latest = self._latest_config()
+        latest.update(fields)
+        _sdk_set_config(PLUGIN_ID, latest)
+        with self.lock:
+            self.config.update(fields)
+
+    def process_ui_commands(self) -> None:
+        """消费配置页写入的操作队列；命令 ID 用于回执和去重。"""
+        if not HAS_SDK:
+            return
+        persisted = self._latest_config()
+        commands = persisted.get("ui_commands")
+        if not isinstance(commands, list) or not commands:
+            return
+
+        processed_ids = set()
+        results = []
+        for command in commands[:20]:
+            if not isinstance(command, dict):
+                continue
+            command_id = str(command.get("id") or "")
+            command_type = str(command.get("type") or "")
+            payload = command.get("payload") if isinstance(command.get("payload"), dict) else {}
+            if not command_id or command_id in processed_ids:
+                continue
+
+            try:
+                if command_type == "refresh":
+                    result = {"ok": True, "message": "已刷新"}
+                elif command_type == "automation_save":
+                    requested = str(payload.get("file") or self.automation.file_name)
+                    self.automation.file_name = requested
+                    result = self.automation.save(payload.get("items"))
+                elif command_type == "automation_insert":
+                    requested = str(payload.get("file") or self.automation.file_name)
+                    self.automation.file_name = requested
+                    result = self.automation.insert_notification(
+                        int(payload.get("index", -1)),
+                        str(payload.get("title") or ""),
+                        str(payload.get("message") or ""),
+                    )
+                elif command_type == "notify":
+                    ok = self.bridge.push_notification(
+                        str(payload.get("title") or "CuckooInterface"),
+                        str(payload.get("message") or ""),
+                        float(payload.get("duration") or 6),
+                    )
+                    result = {"ok": ok, "message": "提醒已加入队列" if ok else "提醒队列不可用"}
+                elif command_type == "inject":
+                    result = self.bridge.inject()
+                elif command_type == "restart":
+                    result = _restart_classisland()
+                else:
+                    result = {"ok": False, "error": f"未知操作：{command_type}"}
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc)}
+
+            processed_ids.add(command_id)
+            results.append({
+                "id": command_id,
+                "type": command_type,
+                "ok": bool(result.get("ok")),
+                "message": str(result.get("message") or ""),
+                "error": str(result.get("error") or ""),
+                "backup": str(result.get("backup") or ""),
+                "version": str(result.get("version") or ""),
+                "updatedAt": datetime.now().isoformat(timespec="seconds"),
+            })
+
+        if not processed_ids:
+            return
+
+        # 再读一次最新配置，避免消费命令期间页面新追加的命令被覆盖。
+        latest = self._latest_config()
+        current_commands = latest.get("ui_commands")
+        if not isinstance(current_commands, list):
+            current_commands = []
+        latest["ui_commands"] = [
+            item for item in current_commands
+            if not isinstance(item, dict) or str(item.get("id") or "") not in processed_ids
+        ]
+        current_results = latest.get("ui_results")
+        if not isinstance(current_results, list):
+            current_results = []
+        latest["ui_results"] = (current_results + results)[-30:]
+        _sdk_set_config(PLUGIN_ID, latest)
+        with self.lock:
+            self.config.update(latest)
+
+    def publish_ui_state(self, state: LessonState) -> None:
+        """把运行状态与当前自动化编辑数据写回宿主配置，供配置页轮询展示。"""
+        snapshot = {
+            "ok": True,
+            "pluginId": PLUGIN_ID,
+            "sdk": HAS_SDK,
+            "config": {k: v for k, v in self.config.items()
+                       if k not in ("ui_commands", "ui_results", "runtime_state", "automation_state")},
+            "lesson": state.to_dict(),
+            "classisland": {
+                "dir": str(self.ci_dir) if self.ci_dir else "",
+                "source": self.dir_source,
+                "found": self.ci_dir is not None,
+            },
+            "bridge": self.bridge.status(),
+            "lastError": self.last_error,
+        }
+        automation = self.automation.load()
+        self._write_config_fields({
+            "runtime_state": snapshot,
+            "automation_state": automation,
+        })
 
     def handle_transition(self, state: LessonState) -> None:
         if not state.ok:
@@ -1059,135 +1185,7 @@ SERVICE = IslandService()
 # ---------------------------------------------------------------------------
 
 
-class ApiHandler(BaseHTTPRequestHandler):
-    server_version = "CuckooIsland/1.0"
-
-    def log_message(self, fmt: str, *args: Any) -> None:  # 静默访问日志
-        return None
-
-    def _send(self, code: int, payload: Any) -> None:
-        body = b"" if code == 204 else json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        # 不开放跨源 CORS；配置页由本服务同源提供。
-        self.end_headers()
-        if body:
-            self.wfile.write(body)
-
-    def _local_request_allowed(self) -> bool:
-        expected = {
-            f"http://127.0.0.1:{self.server.server_port}",
-            f"http://localhost:{self.server.server_port}",
-        }
-        origin = self.headers.get("Origin")
-        if origin and origin not in expected:
-            self._send(403, {"ok": False, "error": "跨源请求已拒绝"})
-            return False
-        host = self.headers.get("Host", "").lower()
-        allowed_hosts = {
-            f"127.0.0.1:{self.server.server_port}",
-            f"localhost:{self.server.server_port}",
-        }
-        if host and host not in allowed_hosts:
-            self._send(403, {"ok": False, "error": "非法 Host"})
-            return False
-        return True
-
-    def _body(self) -> Dict[str, Any]:
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-            if length <= 0:
-                return {}
-            raw = self.rfile.read(length)
-            data = json.loads(raw.decode("utf-8"))
-            return data if isinstance(data, dict) else {}
-        except Exception:
-            return {}
-
-    def do_OPTIONS(self) -> None:  # noqa: N802
-        if not self._local_request_allowed():
-            return
-        self._send(204, {})
-
-    def do_GET(self) -> None:  # noqa: N802
-        if not self._local_request_allowed():
-            return
-        parsed = urlsplit(self.path)
-        path = parsed.path
-        query = parse_qs(parsed.query)
-        try:
-            if path in ("/", "/config.html"):
-                config_path = Path(__file__).resolve().parent / "config.html"
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("X-Frame-Options", "DENY")
-                self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
-                self.send_header("Content-Length", str(config_path.stat().st_size))
-                self.end_headers()
-                self.wfile.write(config_path.read_bytes())
-            elif path == "/api/health":
-                self._send(200, {"ok": True, "time": datetime.now().isoformat()})
-            elif path == "/api/state":
-                self._send(200, SERVICE.snapshot())
-            elif path == "/api/config":
-                self._send(200, {"ok": True, "config": SERVICE.config})
-            elif path == "/api/automations":
-                requested = (query.get("file") or [""])[0].strip()
-                if requested and requested != SERVICE.automation.file_name:
-                    SERVICE.automation.file_name = requested
-                self._send(200, SERVICE.automation.load())
-            elif path == "/api/bridge":
-                self._send(200, {"ok": True, "bridge": SERVICE.bridge.status()})
-            else:
-                self._send(404, {"ok": False, "error": "unknown endpoint"})
-        except Exception as exc:
-            self._send(500, {"ok": False, "error": str(exc)})
-
-    def do_POST(self) -> None:  # noqa: N802
-        if not self._local_request_allowed():
-            return
-        if self.headers.get_content_type() != "application/json":
-            self._send(415, {"ok": False, "error": "仅接受 application/json"})
-            return
-        path = self.path.split("?")[0]
-        body = self._body()
-        try:
-            if path == "/api/config":
-                self._send(200, SERVICE.save_config(body))
-            elif path == "/api/automations":
-                if "items" in body:
-                    self._send(200, SERVICE.automation.save(body.get("items")))
-                elif "file" in body:
-                    SERVICE.automation.file_name = str(body["file"])
-                    self._send(200, SERVICE.automation.load())
-                else:
-                    self._send(400, {"ok": False, "error": "缺少 items 或 file"})
-            elif path == "/api/automations/insert":
-                index = int(body.get("index", -1))
-                title = str(body.get("title") or "")
-                message = str(body.get("message") or "")
-                self._send(200, SERVICE.automation.insert_notification(index, title, message))
-            elif path == "/api/notify":
-                ok = SERVICE.bridge.push_notification(
-                    str(body.get("title") or "CuckooInterface"),
-                    str(body.get("message") or ""),
-                    float(body.get("duration") or 6),
-                )
-                self._send(200, {"ok": ok})
-            elif path == "/api/inject":
-                self._send(200, SERVICE.bridge.inject())
-            elif path == "/api/refresh":
-                SERVICE.reload_config()
-                self._send(200, SERVICE.snapshot())
-            elif path == "/api/restart-classisland":
-                self._send(200, _restart_classisland())
-            else:
-                self._send(404, {"ok": False, "error": "unknown endpoint"})
-        except Exception as exc:
-            self._send(500, {"ok": False, "error": str(exc)})
+# 操作通过宿主配置队列下发，不在插件侧开放本地 HTTP 服务。
 
 
 def _restart_classisland() -> Dict[str, Any]:
@@ -1216,18 +1214,6 @@ def _restart_classisland() -> Dict[str, Any]:
         return {"ok": False, "error": str(exc)}
 
 
-def start_http_server(port: int) -> Optional[ThreadingHTTPServer]:
-    try:
-        server = ThreadingHTTPServer(("127.0.0.1", port), ApiHandler)
-    except OSError as exc:
-        log_error(f"HTTP 端口 {port} 启动失败：{exc}")
-        return None
-    thread = threading.Thread(target=server.serve_forever, name="cuckoo-island-http", daemon=True)
-    thread.start()
-    log_info(f"配置页 API 已启动：http://127.0.0.1:{port}")
-    return server
-
-
 # ---------------------------------------------------------------------------
 # 循环 & 入口
 # ---------------------------------------------------------------------------
@@ -1251,12 +1237,9 @@ def bootstrap() -> None:
     except Exception:
         log_error(traceback.format_exc())
 
-    port = int(SERVICE.config.get("http_port") or DEFAULT_CONFIG["http_port"])
-    start_http_server(port)
-
     stop_event = threading.Event()
     threading.Thread(target=service_loop, args=(stop_event,), name="cuckoo-island-loop", daemon=True).start()
-    log_info("CuckooIsland 已启动")
+    log_info("CuckooIsland 已启动（配置通过宿主配置存储同步）")
 
 
 def cli_selftest() -> int:
