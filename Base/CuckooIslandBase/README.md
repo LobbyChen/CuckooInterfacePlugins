@@ -28,7 +28,7 @@
 ```text
 Base/CuckooIslandBase/
 ├── META-INF.json              # 插件元数据（打包后必须位于压缩包根目录）
-├── main.py                    # 插件入口：课表解析 / 事件 / HTTP API
+├── main.py                    # 插件入口：课表解析 / 事件 / 配置轮询
 ├── config.html                # 配置页（WebView2，深色主题）
 ├── island-bridge/             # 预编译的 ClassIsland 插件，注入时原样复制
 │   ├── CuckooIslandBridge.dll
@@ -68,8 +68,8 @@ Base/CuckooIslandBase/
 4. 打开「配置」页面：
    - 填写 **ClassIsland 安装目录**（包含 `ClassIsland.exe` 与 `data\Settings.json`），保存；
    - 点「注入 / 更新桥接插件」；
-5. 重启 ClassIsland（配置页有按钮），让桥接插件加载；
-6. 点「发送测试提醒」验证链路。
+6. 重启 ClassIsland（配置页有按钮），让桥接插件加载；
+7. 点「发送测试提醒」验证链路。
 
 ClassIsland 目录留空时会依次尝试：`classisland://` 注册表协议 → 卸载表 → 运行中的进程 → 常见安装路径。绿色版或迁移过目录时请手动填写。
 
@@ -78,7 +78,6 @@ ClassIsland 目录留空时会依次尝试：`classisland://` 注册表协议 �
 | 键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `classisland_dir` | `""` | ClassIsland 安装目录；留空自动探测 |
-| `http_port` | `17893` | 配置页使用的本地 API 端口（仅监听 `127.0.0.1`） |
 | `poll_seconds` | `10` | 轮询间隔（最小 3 秒） |
 | `emit_events` | `true` | 是否向事件总线发布事件 |
 | `notify_lesson_start` | `true` | 上课提醒 |
@@ -97,22 +96,21 @@ ClassIsland 目录留空时会依次尝试：`classisland://` 注册表协议 �
 | `cuckoo.island.break.started` | 进入课间 | `name` |
 | `cuckoo.island.bridge.installed` | 注入或更新桥接插件 | `version / target` |
 
-## 本地 API
+## 配置同步与操作队列
 
-插件启动后，使用浏览器打开 `http://127.0.0.1:<http_port>/` 进入配置页（默认端口为 `17893`）。配置页与 API 由同一 localhost 服务提供，API 仅接受同源浏览器请求；不再开放通配 CORS，也不支持从其他网站跨源调用。非浏览器本地工具可直接请求 localhost API，但应避免将该接口暴露到非回环网络接口。
+配置页面由 **CuckooInterface 宿主内置的 WebView2 配置页系统**直接加载本插件的 `config.html`。插件不启动本地 HTTP 服务，也不监听 localhost 端口。
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/state` | 课程状态 + 配置 + 桥接状态 + 自动化摘要 |
-| GET | `/api/config` | 当前配置 |
-| POST | `/api/config` | 合并保存配置 |
-| GET | `/api/automations?file=` | 读取自动化文件 |
-| POST | `/api/automations` | `{ "items": [...] }` 覆盖保存（自动备份） |
-| POST | `/api/automations/insert` | `{ "index": 0, "title": "", "message": "" }` 插入提醒行动 |
-| POST | `/api/notify` | `{ "title": "", "message": "", "duration": 6 }` 推送提醒 |
-| POST | `/api/inject` | 注入 / 更新桥接插件 |
-| POST | `/api/restart-classisland` | 结束并重启 ClassIsland |
-| GET | `/api/health` | 存活检查 |
+配置读写遵循宿主现有协议：
+
+- 页面通过 `cuckoo:init` 接收初始化配置；
+- 页面通过 `cuckoo:saveConfig` 保存配置；
+- 插件通过 Python SDK 的 `get_plugin_config()` 轮询读取设置和操作请求；
+- 插件通过 `set_plugin_config()` 写回运行状态、自动化文件内容和操作结果；
+- 页面每 3 秒发送 `cuckoo:getConfig` 请求，由宿主从配置存储读取最新值并以 `cuckoo:config` 回传。
+
+注入桥接插件、重启 ClassIsland、测试提醒、保存/插入自动化等操作均写入配置中的 `ui_commands` 队列。每条命令有唯一 ID，插件执行后将结果写入 `ui_results`，页面轮询宿主配置取得回执。插件每隔 `poll_seconds` 秒读取一次配置；因此操作执行时间取决于当前轮询间隔。
+
+`runtime_state` 和 `automation_state` 是插件写回供页面展示的运行数据，不需要用户手动编辑。配置页面与插件之间不再存在独立 HTTP API，也不需要配置端口或 CORS 设置。
 
 ## 工作原理
 
@@ -142,7 +140,7 @@ dotnet build src/CuckooIslandBridge.csproj -c Release -p:ClassIslandDir="D:\Apps
 ## 测试情况
 
 - **课表解析**：用真实 ClassIsland 2.1.0.1 课表验证 5 个时间点——06:30 空闲、07:10 第 1 节英语（剩 15 分）、08:20 第 3 节语文、12:00 下一节自习、23:30 无后续课，结果与 ClassIsland 显示一致。
-- **接口**：`/api/state`、`/api/config`、`/api/notify`、`/api/inject`、`/api/automations`、`/api/automations/insert` 均通过样例数据联调（注入返回 v1.0.0.0，插入行动后文件结构正确且生成备份）。
+- **配置通道**：宿主配置页初始化/保存及插件 SDK 轮询读写已按现有协议接入；自动化保存、注入、重启和提醒命令仍需在 Windows + CuckooInterface 环境中做端到端验证。
 - **桥接插件**：以 ClassIsland 2.1.0.1 的 `ClassIsland.Core.dll` 编译通过，并用反射校验入口类型 `[PluginEntrance] + PluginBase`、提醒提供方 `NotificationProviderBase + [NotificationProviderInfo]` 与 `IHostedService` 实现。
 - **未覆盖**：启动真实 ClassIsland 的端到端弹窗验证（避免在测试机上弹窗），以及低版本 ClassIsland 的兼容性。
 
