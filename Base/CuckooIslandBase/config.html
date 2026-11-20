@@ -1059,7 +1059,7 @@
     $("btn-insert").addEventListener("click", insertAction);
     $("btn-auto-save").addEventListener("click", saveAutomation);
     $("btn-auto-reload").addEventListener("click", function () { loadAutomation($("auto-file").value); status("已重新读取自动化", "ok"); });
-    $("btn-refresh").addEventListener("click", function () { refresh().then(function () { status("状态已刷新", "ok"); }); });
+    $("btn-refresh").addEventListener("click", function () { refresh(); status("已请求刷新，等待插件轮询", "info"); });
     $("auto-file").addEventListener("change", function () {
       autoDirty = false;
       loadAutomation($("auto-file").value);
