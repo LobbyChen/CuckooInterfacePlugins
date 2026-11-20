@@ -1,0 +1,10 @@
+# 插件运行时产物
+__pycache__/
+*.pyc
+runtime-state.json
+*.cuckoo-backup-*.json
+
+# 构建产物
+dist/
+src/bin/
+src/obj/

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CuckooIslandBridge</AssemblyName>
+    <RootNamespace>CuckooIslandBridge</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <NoWarn>$(NoWarn);CS8618</NoWarn>
+    <!--
+      ClassIslandDir 指向 ClassIsland 的安装目录（包含 ClassIsland.Core.dll 的那一层）。
+      构建时会从该目录直接引用 ClassIsland 的程序集，不复制到输出目录。
+      可通过 dotnet build -p:ClassIslandDir="D:\\ClassIsland" 覆盖。
+    -->
+    <ClassIslandDir Condition="'$(ClassIslandDir)' == ''">$(CI_DIR)</ClassIslandDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(ClassIslandDir)\ClassIsland.Core.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(ClassIslandDir)\ClassIsland.Shared.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(ClassIslandDir)\CommunityToolkit.Mvvm.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(ClassIslandDir)\Microsoft.Extensions.Hosting.Abstractions.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(ClassIslandDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="manifest.yml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
