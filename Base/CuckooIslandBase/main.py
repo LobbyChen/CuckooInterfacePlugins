@@ -585,7 +585,26 @@ NOTIFICATION_ACTION_TEMPLATE = {
 class AutomationStore:
     def __init__(self, ci_dir: Optional[Path], file_name: str) -> None:
         self.ci_dir = ci_dir
+        self._file_name = "Default.json"
         self.file_name = file_name or "Default.json"
+
+    @property
+    def file_name(self) -> str:
+        return self._file_name
+
+    @file_name.setter
+    def file_name(self, value: str) -> None:
+        name = str(value or "").strip()
+        if (
+            not name
+            or name in (".", "..")
+            or Path(name).name != name
+            or "/" in name
+            or "\\" in name
+            or not name.lower().endswith(".json")
+        ):
+            raise ValueError("自动化文件名必须是单层 .json 文件名")
+        self._file_name = name
 
     @property
     def dir(self) -> Optional[Path]:
@@ -596,7 +615,14 @@ class AutomationStore:
     @property
     def path(self) -> Optional[Path]:
         directory = self.dir
-        return None if directory is None else directory / self.file_name
+        if directory is None:
+            return None
+        root = directory.resolve()
+        candidate = (root / self.file_name).resolve()
+        # resolve() 同时处理 ..、绝对路径和指向目录外的符号链接。
+        if candidate.parent != root or candidate.suffix.lower() != ".json":
+            raise ValueError("自动化文件路径超出 Automations 目录")
+        return candidate
 
     def list_files(self) -> List[str]:
         directory = self.dir
@@ -873,8 +899,7 @@ class IslandService:
         with self.lock:
             ci_dir = self.ci_dir
         state = compute_state(ci_dir)
-        with self.lock:
-            self.last_state = state
+        # 这里只生成快照；不能覆盖 last_state，否则转换处理将失去旧状态。
         self.write_state_file(state)
         return state
 
@@ -927,9 +952,12 @@ class IslandService:
             return
         key = (state.plan_id, state.status, state.lesson_index, state.subject)
         if key == self.last_key:
+            with self.lock:
+                self.last_state = state
             return
 
-        previous = self.last_state
+        with self.lock:
+            previous = self.last_state
         previous_status = previous.status
         previous_subject = previous.subject
         self.last_key = key
@@ -983,6 +1011,10 @@ class IslandService:
                     5,
                 )
 
+        # 仅在比较和处理完成后提交新状态，确保下一轮仍能看到旧状态。
+        with self.lock:
+            self.last_state = state
+
     def snapshot(self) -> Dict[str, Any]:
         state = self.compute()
         with self.lock:
@@ -1029,16 +1061,34 @@ class ApiHandler(BaseHTTPRequestHandler):
         return None
 
     def _send(self, code: int, payload: Any) -> None:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        body = b"" if code == 204 else json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        # 不开放跨源 CORS；配置页由本服务同源提供。
         self.end_headers()
-        self.wfile.write(body)
+        if body:
+            self.wfile.write(body)
+
+    def _local_request_allowed(self) -> bool:
+        expected = {
+            f"http://127.0.0.1:{self.server.server_port}",
+            f"http://localhost:{self.server.server_port}",
+        }
+        origin = self.headers.get("Origin")
+        if origin and origin not in expected:
+            self._send(403, {"ok": False, "error": "跨源请求已拒绝"})
+            return False
+        host = self.headers.get("Host", "").lower()
+        allowed_hosts = {
+            f"127.0.0.1:{self.server.server_port}",
+            f"localhost:{self.server.server_port}",
+        }
+        if host and host not in allowed_hosts:
+            self._send(403, {"ok": False, "error": "非法 Host"})
+            return False
+        return True
 
     def _body(self) -> Dict[str, Any]:
         try:
@@ -1052,14 +1102,26 @@ class ApiHandler(BaseHTTPRequestHandler):
             return {}
 
     def do_OPTIONS(self) -> None:  # noqa: N802
+        if not self._local_request_allowed():
+            return
         self._send(204, {})
 
     def do_GET(self) -> None:  # noqa: N802
+        if not self._local_request_allowed():
+            return
         parsed = urlsplit(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
         try:
-            if path == "/api/health":
+            if path in ("/", "/config.html"):
+                config_path = Path(__file__).resolve().parent / "config.html"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(config_path.stat().st_size))
+                self.end_headers()
+                self.wfile.write(config_path.read_bytes())
+            elif path == "/api/health":
                 self._send(200, {"ok": True, "time": datetime.now().isoformat()})
             elif path == "/api/state":
                 self._send(200, SERVICE.snapshot())
@@ -1078,6 +1140,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send(500, {"ok": False, "error": str(exc)})
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._local_request_allowed():
+            return
+        if self.headers.get_content_type() != "application/json":
+            self._send(415, {"ok": False, "error": "仅接受 application/json"})
+            return
         path = self.path.split("?")[0]
         body = self._body()
         try:
