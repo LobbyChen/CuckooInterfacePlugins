@@ -170,25 +170,37 @@ public class CuckooNotificationProvider : NotificationProviderBase, IHostedServi
             }
 
             stream.Seek(_offset, SeekOrigin.Begin);
-            var buffer = new byte[stream.Length - _offset];
+            // 限制单轮读取量，并且只推进到已消费的完整行末尾。
+            var available = (int)Math.Min(stream.Length - _offset, 1024 * 1024);
+            var buffer = new byte[available];
             var read = stream.Read(buffer, 0, buffer.Length);
-            _offset += read;
+            var lineStart = 0;
+            var consumed = 0;
 
-            var text = Encoding.UTF8.GetString(buffer, 0, read);
-            foreach (var line in text.Split('\n'))
+            for (var i = 0; i < read; i++)
             {
-                var trimmed = line.Trim('\r', ' ', '\t');
-                if (trimmed.Length == 0)
+                if (buffer[i] != (byte)'\n')
                 {
                     continue;
                 }
 
-                result.Add(trimmed);
+                var line = Encoding.UTF8.GetString(buffer, lineStart, i - lineStart);
+                var trimmed = line.Trim('\r', ' ', '\t');
+                if (trimmed.Length > 0)
+                {
+                    result.Add(trimmed);
+                }
+
+                lineStart = i + 1;
+                consumed = lineStart;
                 if (result.Count >= MaxLinesPerPoll)
                 {
                     break;
                 }
             }
+
+            // 未遇到换行的尾部可能只是尚未写完的 JSON，留给下一轮继续读取。
+            _offset += consumed;
         }
 
         return result;
