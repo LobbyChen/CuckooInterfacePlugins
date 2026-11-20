@@ -867,7 +867,12 @@ class IslandService:
             self.ci_dir = ci_dir
             self.dir_source = source
             self.automation.ci_dir = ci_dir
-            self.automation.file_name = str(config.get("automation_file") or "Default.json")
+            try:
+                self.automation.file_name = str(config.get("automation_file") or "Default.json")
+            except ValueError as exc:
+                log_error(f"忽略不安全的自动化文件名：{exc}")
+                self.automation.file_name = "Default.json"
+                self.config["automation_file"] = "Default.json"
             self.bridge.set_dir(ci_dir)
 
     def _resolve_dir(self, configured: str) -> Tuple[Optional[Path], str]:
