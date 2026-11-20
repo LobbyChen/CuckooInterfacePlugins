@@ -694,8 +694,10 @@
     hostConfig = parseConfig(raw);
     hostConfigReady = true;
     if (!settingsDirty) fillSettings(hostConfig);
-    if (hostConfig.runtime_state) renderState(hostConfig.runtime_state);
-    if (hostConfig.automation_state && !autoDirty) {
+    if (hostConfig.runtime_state && hostConfig.runtime_state.lesson) {
+      renderState(hostConfig.runtime_state);
+    }
+    if (hostConfig.automation_state && hostConfig.automation_state.file && !autoDirty) {
       renderAutomation(hostConfig.automation_state);
     }
     processCommandResults();
