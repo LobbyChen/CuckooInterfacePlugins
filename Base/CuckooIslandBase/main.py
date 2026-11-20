@@ -852,10 +852,6 @@ class IslandService:
             config.update(self.config)
 
         try:
-            config["http_port"] = int(config.get("http_port") or DEFAULT_CONFIG["http_port"])
-        except (TypeError, ValueError):
-            config["http_port"] = DEFAULT_CONFIG["http_port"]
-        try:
             config["poll_seconds"] = max(3, int(config.get("poll_seconds") or 10))
         except (TypeError, ValueError):
             config["poll_seconds"] = 10
