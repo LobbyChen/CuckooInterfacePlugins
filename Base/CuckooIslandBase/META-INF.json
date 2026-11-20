@@ -2,10 +2,15 @@
   "name": "CuckooIslandBase",
   "id": "com.cuckoo.plugin.cuckoo_island",
   "type": 42,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "读取 ClassIsland 课表与自动化配置，把当前科目、上下课状态发布为 CuckooInterface 事件，并自动注入 ClassIsland 桥接插件以提醒形式回显事件。",
   "runtime_type": "python",
-  "tag": ["classisland", "课表", "联动", "提醒"],
+  "tag": [
+    "classisland",
+    "课表",
+    "联动",
+    "提醒"
+  ],
   "events": [
     "cuckoo.island.state",
     "cuckoo.island.lesson.started",
@@ -14,5 +19,5 @@
     "cuckoo.island.bridge.installed"
   ],
   "config_page": "config.html",
-  "default_config": "{\"classisland_dir\":\"\",\"http_port\":17893,\"poll_seconds\":10,\"emit_events\":true,\"notify_lesson_start\":true,\"notify_lesson_end\":true,\"notify_break\":false,\"auto_inject_bridge\":true,\"automation_file\":\"Default.json\"}"
+  "default_config": "{\"classisland_dir\":\"\",\"poll_seconds\":10,\"emit_events\":true,\"notify_lesson_start\":true,\"notify_lesson_end\":true,\"notify_break\":false,\"auto_inject_bridge\":true,\"automation_file\":\"Default.json\",\"ui_commands\":[],\"ui_results\":[],\"runtime_state\":{},\"automation_state\":{}}"
 }
