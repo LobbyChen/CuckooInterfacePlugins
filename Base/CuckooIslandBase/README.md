@@ -68,8 +68,8 @@ Base/CuckooIslandBase/
 4. 打开「配置」页面：
    - 填写 **ClassIsland 安装目录**（包含 `ClassIsland.exe` 与 `data\Settings.json`），保存；
    - 点「注入 / 更新桥接插件」；
-6. 重启 ClassIsland（配置页有按钮），让桥接插件加载；
-7. 点「发送测试提醒」验证链路。
+5. 重启 ClassIsland（配置页有按钮），让桥接插件加载；
+6. 点「发送测试提醒」验证链路。
 
 ClassIsland 目录留空时会依次尝试：`classisland://` 注册表协议 → 卸载表 → 运行中的进程 → 常见安装路径。绿色版或迁移过目录时请手动填写。
 
